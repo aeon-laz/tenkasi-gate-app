@@ -3,67 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tenkasi Gate Status</title>
+    <title>Tenkasi Railway Gate Tracker</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-        .container { max-width: 500px; margin: auto; }
-        .gate-card {
-            background: #1e1e1e; padding: 20px; border-radius: 15px; margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid #333;
-        }
-        .status { font-size: 24px; font-weight: bold; padding: 10px; border-radius: 8px; display: inline-block; width: 80%; margin: 10px 0; }
-        .OPEN { background: #00c853; color: white; }
-        .CLOSED { background: #d50000; color: white; }
-        .CLOSING { background: #ffab00; color: black; }
-        .refresh { font-size: 12px; color: #888; margin-top: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; }
+        
+        /* Gate Cards */
+        .gate-card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .gate-info h3 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .gate-info p { margin: 0; font-size: 0.9em; color: #666; }
+        .status-badge { padding: 8px 15px; border-radius: 20px; color: white; font-weight: bold; font-size: 0.9em; min-width: 100px; text-align: center;}
+        
+        .green { background-color: #28a745; }
+        .red { background-color: #dc3545; }
+        .orange { background-color: #ffc107; color: #333; }
+
+        /* Upcoming Table */
+        .train-table { width: 100%; background: white; border-radius: 12px; overflow: hidden; margin-top: 20px; border-collapse: collapse; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .train-table th { background: #007bff; color: white; padding: 12px; text-align: left; }
+        .train-table td { padding: 12px; border-bottom: 1px solid #eee; }
+        .train-table tr:last-child td { border-bottom: none; }
+
+        /* Note Section */
+        .note { background: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-top: 30px; border-radius: 4px; font-size: 0.9em; }
     </style>
 </head>
 <body>
+
     <div class="container">
-        <h2>🚂 Tenkasi Gate Tracker</h2>
-        <p>Live Automatic Updates</p>
+        <h2 style="text-align: center; margin-bottom: 30px;">🚧 Tenkasi Gate Status</h2>
 
         <div class="gate-card">
-            <h3>Pavurchatram Gate</h3>
-            <div id="pcm-status" class="status">Loading...</div>
-            <p id="pcm-msg">Checking trains...</p>
+            <div class="gate-info">
+                <h3>Ariapuram Gate</h3>
+                <p id="ariapuram-msg">Checking...</p>
+            </div>
+            <div id="ariapuram-status" class="status-badge green">OPEN</div>
         </div>
 
         <div class="gate-card">
-            <h3>Mettur / Ariapuram Gate</h3>
-            <div id="mettur-status" class="status">Loading...</div>
-            <p id="mettur-msg">Checking trains...</p>
+            <div class="gate-info">
+                <h3>Mettur Gate</h3>
+                <p id="mettur-msg">Checking...</p>
+            </div>
+            <div id="mettur-status" class="status-badge green">OPEN</div>
         </div>
 
-        <div class="refresh">Auto-refreshing every 30 seconds</div>
+        <div class="gate-card">
+            <div class="gate-info">
+                <h3>Pavurchatram Gate</h3>
+                <p id="pcm-msg">No trains nearby</p>
+            </div>
+            <div id="pavurchatram-status" class="status-badge green">OPEN</div>
+        </div>
+
+        <h3>🚆 Next Trains (Today)</h3>
+        <table class="train-table">
+            <thead>
+                <tr>
+                    <th>Train</th>
+                    <th>Direction</th>
+                    <th>Exp. Time</th>
+                </tr>
+            </thead>
+            <tbody id="train-list">
+                <tr><td colspan="3">Loading schedule...</td></tr>
+            </tbody>
+        </table>
+
+        <div class="note">
+            <strong>ℹ️ How this works:</strong><br>
+            This app tracks the <strong>official schedule</strong> of trains passing Tenkasi & Pavurchatram. <br><br>
+            Since Mettur Station is between Ariapuram and Mettur Gate, we calculate the gate closing times separately:
+            <ul>
+                <li><strong>Ariapuram Gate:</strong> Opens once the train reaches Mettur Station.</li>
+                <li><strong>Mettur Gate:</strong> Closes when train reaches Mettur Station.</li>
+            </ul>
+            <em>Note: Goods trains are not detected. Always obey signals.</em>
+        </div>
+
     </div>
 
     <script>
-        async function fetchStatus() {
+        async function updateStatus() {
             try {
                 const response = await fetch('/api/status');
                 const data = await response.json();
 
-                updateGate('pcm', data.pavurchatram);
-                updateGate('mettur', data.mettur);
+                // Update Gates
+                updateGate('ariapuram', data.gates.ariapuram);
+                updateGate('mettur', data.gates.mettur);
+                updateGate('pavurchatram', data.gates.pavurchatram);
+
+                // Update Table
+                const tbody = document.getElementById('train-list');
+                tbody.innerHTML = '';
+                if(data.upcoming.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3">No trains in next 4 hours</td></tr>';
+                } else {
+                    data.upcoming.forEach(train => {
+                        const row = `<tr>
+                            <td><strong>${train.name}</strong><br><small>${train.delay}</small></td>
+                            <td>${train.direction}</td>
+                            <td>${train.time}</td>
+                        </tr>`;
+                        tbody.innerHTML += row;
+                    });
+                }
+
             } catch (error) {
-                console.error("Error fetching status:", error);
+                console.log("Error", error);
             }
         }
 
-        function updateGate(id, data) {
-            const statusEl = document.getElementById(id + '-status');
-            const msgEl = document.getElementById(id + '-msg');
-
-            statusEl.innerText = data.status;
-            msgEl.innerText = data.message;
+        function updateGate(id, info) {
+            const badge = document.getElementById(id + '-status');
+            const msg = document.getElementById(id + '-msg');
             
-            // Remove old classes and add new one
-            statusEl.className = 'status ' + data.status.split(' ')[0]; 
+            badge.innerText = info.status;
+            badge.className = `status-badge ${info.color}`;
+            msg.innerText = info.msg;
         }
 
-        fetchStatus();
-        setInterval(fetchStatus, 30000); // Run every 30 seconds
+        // Auto Refresh every 30 seconds
+        updateStatus();
+        setInterval(updateStatus, 30000);
     </script>
 </body>
 </html>
