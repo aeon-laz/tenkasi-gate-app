@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenkasi Gate Status</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        .gate-card {
+            background: #1e1e1e; padding: 20px; border-radius: 15px; margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 2px solid #333;
+        }
+        .status { font-size: 24px; font-weight: bold; padding: 10px; border-radius: 8px; display: inline-block; width: 80%; margin: 10px 0; }
+        .OPEN { background: #00c853; color: white; }
+        .CLOSED { background: #d50000; color: white; }
+        .CLOSING { background: #ffab00; color: black; }
+        .refresh { font-size: 12px; color: #888; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🚂 Tenkasi Gate Tracker</h2>
+        <p>Live Automatic Updates</p>
+
+        <div class="gate-card">
+            <h3>Pavurchatram Gate</h3>
+            <div id="pcm-status" class="status">Loading...</div>
+            <p id="pcm-msg">Checking trains...</p>
+        </div>
+
+        <div class="gate-card">
+            <h3>Mettur / Ariapuram Gate</h3>
+            <div id="mettur-status" class="status">Loading...</div>
+            <p id="mettur-msg">Checking trains...</p>
+        </div>
+
+        <div class="refresh">Auto-refreshing every 30 seconds</div>
+    </div>
+
+    <script>
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                updateGate('pcm', data.pavurchatram);
+                updateGate('mettur', data.mettur);
+            } catch (error) {
+                console.error("Error fetching status:", error);
+            }
+        }
+
+        function updateGate(id, data) {
+            const statusEl = document.getElementById(id + '-status');
+            const msgEl = document.getElementById(id + '-msg');
+
+            statusEl.innerText = data.status;
+            msgEl.innerText = data.message;
+            
+            // Remove old classes and add new one
+            statusEl.className = 'status ' + data.status.split(' ')[0]; 
+        }
+
+        fetchStatus();
+        setInterval(fetchStatus, 30000); // Run every 30 seconds
+    </script>
+</body>
+</html>
